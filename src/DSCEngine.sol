@@ -70,8 +70,8 @@ contract DSCEngine is ReentrancyGuard {
     modifier moreThanZero(uint256 amount) {
         if (amount == 0) {
             revert DSCEngine__NeedsMoreThatZero();
-            _;
         }
+        _;
     }
 
     modifier isAllowedToken(address token) {

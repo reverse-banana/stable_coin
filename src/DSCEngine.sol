@@ -5,6 +5,8 @@ import {DecentralizedStableCoin} from "src/DecentralizedStableCoin.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/v0.8/interfaces/AggregatorV3Interface.sol";
+import {console} from "forge-std/console.sol";
+
 
 /**
  * @title DecentralizedStableCoin
@@ -41,8 +43,8 @@ contract DSCEngine is ReentrancyGuard {
     uint256 private constant ADDITIONAL_FEED_PRECISION_1e10 = 1e10;
     uint256 private constant PRECISION_1e18 = 1e18;
 
-    uint256 private constant LIQUIDATION_THRESHOLD = 50; 
-    uint256 private constant LIQUIDATION_PRECISION = 100; 
+    uint256 private constant LIQUIDATION_THRESHOLD = 50;
+    uint256 private constant LIQUIDATION_PRECISION = 100;
     uint256 private constant MIN_HEALTH_FACTOR = 1;
 
     mapping(address token => address priceFeed) private s_priceFeeds;
@@ -105,11 +107,21 @@ contract DSCEngine is ReentrancyGuard {
         // DecentralizedStableCoin(dscAddress) converts the address dscAddress to a DecentralizedStableCoin contract type. which value assigns to the i_dsc
     }
 
-    ////////////////////////////
-    // External Functions     //
-    ////////////////////////////
+    ///////////////////////////////////////
+    // Public and external Functions     //
+    //////////////////////////////////////
 
-    function depositCollateralAndMintDsc() external {}
+    /**
+     * @notice the function is a wrapper for the depositCollateral and mintDsc functions
+     * @param tokenCollateralAddress - address of the token that will be deposited as collateral
+     * @param amountCollateral - amount of Collateral to deposit
+     * @param amountDscToMint - amount of DSC to mint
+     */
+
+    function depositCollateralAndMintDsc(address tokenCollateralAddress, uint256 amountCollateral, uint256 amountDscToMint) external {
+        depositCollateral(tokenCollateralAddress, amountCollateral);
+        mintDsc(amountDscToMint);
+    }
 
     /**
      * @notice follows CEI (checks, affects, interactions) pattern
@@ -117,7 +129,7 @@ contract DSCEngine is ReentrancyGuard {
      * @param amountCollateral - amount of Collateral to deposit
      */
     function depositCollateral(address tokenCollateralAddress, uint256 amountCollateral)
-        external
+        public
         isAllowedToken(tokenCollateralAddress)
         moreThanZero(amountCollateral)
         nonReentrant
@@ -132,14 +144,14 @@ contract DSCEngine is ReentrancyGuard {
 
     function redeemCollateralForDsc() external {}
 
-    function redeemCollateral() external {}
+    function redeemCollateral(address tokenCollateralAddress) external {}
 
     /**
      * @notice  follows CEI
      * @param amountDscToMint the amount stable coin to mint
      * @notice they must have more collateral value that minimum threshold
      */
-    function mintDsc(uint256 amountDscToMint) external moreThanZero(amountDscToMint) {
+    function mintDsc(uint256 amountDscToMint) public moreThanZero(amountDscToMint) {
         _revertIfHealthFactorIsBroken(msg.sender);
         s_DSCMinted[msg.sender] += amountDscToMint;
         // ask question about order of lines
@@ -147,7 +159,6 @@ contract DSCEngine is ReentrancyGuard {
         if (!minted) {
             revert DCSEngine__MintFailed();
         }
-
     }
 
     function burnDsc() external {}
@@ -200,17 +211,13 @@ contract DSCEngine is ReentrancyGuard {
         }
     }
 
-
-
-
-
     //////////////////////////////////////////////
     // Public and External view  functions      //
     //////////////////////////////////////////////
 
     /**
      * @dev in order to get the full amount of the collateral of the given account
-     * we have loop throught each collateral token, get the amount the have deposited in general 
+     * we have loop throught each collateral token, get the amount the have deposited in general
      */
     function getAccountCollateralValue(address user) public view returns (uint256 totalCollateralValueInUsd) {
         for (uint256 i = 0; i < s_collateralTokens.length; i++) {
@@ -230,8 +237,14 @@ contract DSCEngine is ReentrancyGuard {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
         uint8 tokenDecimalsAmount = priceFeed.decimals();
-        return (uint256(price) * amount) / tokenDecimalsAmount;
-        // since the eth and btc return a 1e8 decimal value we created a additional 1e10 value to bring the price  into 1e18 decimals format with we would multiply with actual amount and than substract the same 1e18 to get clean number
-        // upd: to make the fucntion more flexible I fetch the decimals amount of the token pasted from the priceFeed and then divide it to get clean number (not tested yet)
+        // The amount is assumed to be in 18 decimals, adjust the price to match this decimal place.
+        // Example: If priceFeedDecimals is 8 and the amount is in 18 decimals, we need to scale the price by 10^(18 - priceFeedDecimals).
+        uint256 scaledPrice_1e18 = uint256(price) * 10 ** (18 - tokenDecimalsAmount);
+        
+        // Calculate USD value
+        return (scaledPrice_1e18 * amount) / 1e18;
+
     }
+    // since the eth and btc return a 1e8 decimal value we created a additional 1e10 value to bring the price  into 1e18 decimals format with we would multiply with actual amount and than substract the same 1e18 to get clean number
+    // upd: to make the fucntion more flexible I fetch the decimals amount of the token pasted from the priceFeed and then divide it to get clean number (not tested yet)
 }

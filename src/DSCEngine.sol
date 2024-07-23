@@ -63,7 +63,9 @@ contract DSCEngine is ReentrancyGuard {
     ////////////////////////////
 
     event CollateralDeposited(address indexed user, address indexed token, uint256 indexed amount);
-    event CollateralRedeemed(address indexed redeemedFrom, address indexed redeemedTo, address indexed token, uint256 amount);
+    event CollateralRedeemed(
+        address indexed redeemedFrom, address indexed redeemedTo, address indexed token, uint256 amount
+    );
 
     ////////////////////////////
     // Modifiers              //
@@ -163,7 +165,6 @@ contract DSCEngine is ReentrancyGuard {
         moreThanZero(amountCollateral)
         nonReentrant
     {
-
         _redeemCollateral(msg.sender, msg.sender, tokenCollateralAddress, amountCollateral);
         // due to the design of the function where we use from / to pair we making the tranfer from the msg.sender locked collaterall value of the hashmap (which pinned to his address) to his address (so the the msg.sender is the hash map key) and the second is the actual address we will send the funds
         _revertIfHealthFactorIsBroken(msg.sender);
@@ -224,12 +225,12 @@ contract DSCEngine is ReentrancyGuard {
         uint256 totalCollateralToRedeem = tokenAmountToCoverTheDebt + bonusCollateral;
         _redeemCollateral(violator, msg.sender, tokenCollateralAddress, totalCollateralToRedeem);
         _burnDsc(debtToCoverInUsd, violator, msg.sender);
-    
+
         uint256 endingUserHealthFactor = _healthFactor(violator);
         if (endingUserHealthFactor <= MIN_HEALTH_FACTOR) {
             revert DCSEngine__HealthFactorNotImpoved(violator, endingUserHealthFactor);
         }
-    
+
         _revertIfHealthFactorIsBroken(msg.sender);
         // checking if the liquidator health factor is okay
     }
@@ -251,8 +252,6 @@ contract DSCEngine is ReentrancyGuard {
         i_dsc.burn(amountDscToBurn);
         // making the actual burn of the dsc
     }
-
-
 
     function _redeemCollateral(address from, address to, address tokenCollateralAddress, uint256 amountCollateral)
         private
@@ -357,4 +356,10 @@ contract DSCEngine is ReentrancyGuard {
     }
     // since the eth and btc return a 1e8 decimal value we created a additional 1e10 value to bring the price  into 1e18 decimals format with we would multiply with actual amount and than substract the same 1e18 to get clean number
     // upd: to make the fucntion more flexible I fetch the decimals amount of the token pasted from the priceFeed and then divide it to get clean number (not tested yet)
+
+    function getAccountInformation(address user) external view returns (uint256 totalDscMinted, uint256 collateralValueInUsd) {
+        (totalDscMinted, collateralValueInUsd) = _getAccountInformation(user);
+    }
+    // created a external visibility wrapper for the private function for the test purposes
+    // seems that due to the private visibility we have explicitly define the returnrf values from the function
 }

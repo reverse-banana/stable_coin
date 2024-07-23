@@ -19,6 +19,7 @@ contract DSCEngineTest is Test {
     address USER = makeAddr("user");
     uint256 public constant AMOUNT_COLLATERAL = 10 ether;
     uint256 public constant STARTING_ERC20_BALANCE = 100 ether;
+    uint256 public constant INITIAL_BALANCE = 1000 ether;
 
     function setUp() public {
         deployer = new DeployDsc();
@@ -91,4 +92,46 @@ contract DSCEngineTest is Test {
         // seems like it tranfers from the msg.sender name
         vm.stopPrank();
     }
+
+    function testRevertsWithUnApprovedCollateral() public {
+        ERC20Mock ranToken = new ERC20Mock("RAN", "RAN", USER, INITIAL_BALANCE);
+        // creating a new erc20mock that isn't verified that we will try to deposit with
+
+        vm.startPrank(USER);
+        vm.expectRevert(DSCEngine.DCSEngine__NotAllowedToken.selector);
+        dscEngine.depositCollateral(address(ranToken), AMOUNT_COLLATERAL);
+        // attempting to deposit the AMOUNT_COLLATERAL of the ranToken that wasn't passed  to the contructor during intial deploy 
+    }
+
+    modifier depositedCollateral() {
+        vm.startPrank(USER);
+        ERC20Mock(weth).approve(address(dscEngine), AMOUNT_COLLATERAL);
+        // we telling the weth contract to approve the dscEngine contract to spend the AMOUNT_COLLATERAL by the user which we pranked
+        dscEngine.depositCollateral(weth, AMOUNT_COLLATERAL);
+        // depositing the AMOUNT_COLLATERAL of weth to the dscEngine contract
+        vm.stopPrank();
+        _;
+    }
+
+    function testCanDepositCollateralAndGetAccountInfo() public depositedCollateral {
+        (uint256 totalDscMinted, uint256 collateralValueInUsd) = dscEngine.getAccountInformation(USER);
+        // getting the account information of the user
+
+        uint256 expectedTotalDscMinted = 0;
+        // uint256 expectedCollateralValueInUsd = 20000e18; // 10 * 2000
+
+        uint256 expectedCollateralValueInUsd = dscEngine.getUsdValue(weth, AMOUNT_COLLATERAL);
+
+        uint256 expectedDepositAMount = dscEngine.getTokenAmountFromUsd(weth, collateralValueInUsd);
+        // kinda tricky part, where we are converting the usd value of the collateral which we are fetching from via _getAccountInformation to get the token amount of the collateral and comparing it to the AMOUNT_COLLATERAL
+
+        assertEq(totalDscMinted, expectedTotalDscMinted, "Total DSC minted should be 0");
+        assertEq(collateralValueInUsd, expectedCollateralValueInUsd, "Collateral value in USD should be 20000");
+        assertEq(AMOUNT_COLLATERAL, expectedDepositAMount, "Deposit amount should be 10 eth");
+    
+
+    }
+
+
+
 }

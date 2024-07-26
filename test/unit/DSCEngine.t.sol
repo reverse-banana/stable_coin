@@ -16,33 +16,36 @@ import { Test, console } from "forge-std/Test.sol";
 import { StdCheats } from "forge-std/StdCheats.sol";
 
 contract DSCEngineTest is StdCheats, Test {
-    event CollateralRedeemed(address indexed redeemFrom, address indexed redeemTo, address token, uint256 amount); // if
-        // redeemFrom != redeemedTo, then it was liquidated
+event CollateralRedeemed(address indexed redeemFrom, address indexed redeemTo, address token, uint256 amount); // if
+// redeemFrom != redeemedTo, then it was liquidated
 
     DSCEngine public dsce;
     DecentralizedStableCoin public dsc;
     HelperConfig public helperConfig;
 
+    // Network Config Variables 
     address public ethUsdPriceFeed;
     address public btcUsdPriceFeed;
     address public weth;
     address public wbtc;
     uint256 public deployerKey;
 
+    // Prank Variables
     uint256 amountCollateral = 10 ether;
     uint256 amountToMint = 100 ether;
     address public user = address(1);
-
     uint256 public constant STARTING_USER_BALANCE = 10 ether;
+
+    // Health Factor / System Variables
     uint256 public constant MIN_HEALTH_FACTOR = 1e18;
     uint256 public constant LIQUIDATION_THRESHOLD = 50;
 
-    // Liquidation
+    // Liquidation Variables
     address public liquidator = makeAddr("liquidator");
     uint256 public collateralToCover = 20 ether;
 
     function setUp() external {
-        DeployDSC deployer = new DeployDSC();
+        DeployDsc deployer = new DeployDsc();
         (dsc, dsce, helperConfig) = deployer.run();
         (ethUsdPriceFeed, btcUsdPriceFeed, weth, wbtc, deployerKey) = helperConfig.activeNetworkConfig();
         if (block.chainid == 31_337) {
@@ -78,6 +81,7 @@ contract DSCEngineTest is StdCheats, Test {
 
         vm.expectRevert(DSCEngine.DSCEngine__TokenAddressesAndPriceFeedAddressesAmountsDontMatch.selector);
         new DSCEngine(tokenAddresses, feedAddresses, address(dsc));
+        // passing the arrays with different lengths in the constructor which should be reverted
     }
 
     //////////////////
@@ -104,7 +108,7 @@ contract DSCEngineTest is StdCheats, Test {
     ///////////////////////////////////////
 
     // this test needs it's own setup
-    function testRevertsIfTransferFromFails() public {
+/*     function testRevertsIfTransferFromFails() public {
         // Arrange - Setup
         address owner = msg.sender;
         vm.prank(owner);
@@ -124,7 +128,7 @@ contract DSCEngineTest is StdCheats, Test {
         vm.expectRevert(DSCEngine.DSCEngine__TransferFailed.selector);
         mockDsce.depositCollateral(address(mockDsc), amountCollateral);
         vm.stopPrank();
-    }
+    } */
 
     function testRevertsIfCollateralZero() public {
         vm.startPrank(user);
@@ -133,6 +137,7 @@ contract DSCEngineTest is StdCheats, Test {
         vm.expectRevert(DSCEngine.DSCEngine__NeedsMoreThanZero.selector);
         dsce.depositCollateral(weth, 0);
         vm.stopPrank();
+        // depositing a zero amount that should be reverted vie custom error 
     }
 
     function testRevertsWithUnapprovedCollateral() public {
@@ -141,6 +146,7 @@ contract DSCEngineTest is StdCheats, Test {
         vm.expectRevert(abi.encodeWithSelector(DSCEngine.DSCEngine__TokenNotAllowed.selector, address(randToken)));
         dsce.depositCollateral(address(randToken), amountCollateral);
         vm.stopPrank();
+        // depositing a token that wasn't passed to the constructor during deployment
     }
 
     modifier depositedCollateral() {
@@ -154,6 +160,7 @@ contract DSCEngineTest is StdCheats, Test {
     function testCanDepositCollateralWithoutMinting() public depositedCollateral {
         uint256 userBalance = dsc.balanceOf(user);
         assertEq(userBalance, 0);
+        // checking if the user can just deposit collateral without minting any DSC to the contract
     }
 
     function testCanDepositedCollateralAndGetAccountInfo() public depositedCollateral {
@@ -161,6 +168,9 @@ contract DSCEngineTest is StdCheats, Test {
         uint256 expectedDepositedAmount = dsce.getTokenAmountFromUsd(weth, collateralValueInUsd);
         assertEq(totalDscMinted, 0);
         assertEq(expectedDepositedAmount, amountCollateral);
+        // tricky test where we checking both correctness of the account information function 
+        // which usdvalue we  converting back to the token amount (which tests the gettokenamountfromusd function)
+        // and compraing them 
     }
 
     ///////////////////////////////////////

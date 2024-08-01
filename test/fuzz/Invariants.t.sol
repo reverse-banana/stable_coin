@@ -4,12 +4,12 @@ pragma solidity ^0.8.19;
 
 import {Test, console} from "forge-std/Test.sol";
 import {DSCEngine} from "src/DSCEngine.sol";
-import {DeployDsc} from "../script/DeployDSC.s.sol";
+import {DeployDsc} from "../../script/DeployDSC.s.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {DecentralizedStableCoin} from "src/DecentralizedStableCoin.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {Handler} from "test/Handler.t.sol";
+import {Handler} from "test/fuzz/Handler.t.sol";
 
 contract InvariantTest is StdInvariant, Test {
     DeployDsc deployer;
@@ -49,6 +49,14 @@ contract InvariantTest is StdInvariant, Test {
         console.log("wbtc value:", wbtcValue);
         console.log("total supply:", dsctotalSupply);  
         console.log("times mint called: ", handler.timeMintIsCalled());
-    
+    }
+
+    function invatint_gettersShouldNotRevert() public view {
+        dsce.getCollateralTokens();
+        dsce.getLiquidationBonus();
+        dsce.getLiquidationThreshold();
+        dsce.getMinHealthFactor();
+        dsce.getPrecision();
+        dsce.getDsc();
     }
 }
